@@ -154,7 +154,14 @@ Common types for this project: `feat`, `fix`, `docs`, `docker`, `refactor`, `tes
 
 ### What must never be committed
 
-`.env`, `data/` (both in `.gitignore`). The `.env.example` is the safe template to commit instead.
+`.env`, `data/`, `graphify-out/` (all in `.gitignore`). The `.env.example` is the safe template to commit instead.
+
+### Skipping the graphify hook
+
+If a commit is in a tight loop or CI environment where you don't want the background rebuild:
+```bash
+GRAPHIFY_SKIP_HOOK=1 git commit -m "..."
+```
 
 ---
 
@@ -163,6 +170,35 @@ Common types for this project: `feat`, `fix`, `docs`, `docker`, `refactor`, `tes
 - `data/users.json` — plaintext JSON (bcrypt hashes, no sensitive plaintext)
 - `data/transactions/<uuid4>.json.enc` — Fernet-encrypted; unreadable without `APP_SECRET_KEY`
 - If `APP_SECRET_KEY` changes, all existing `.json.enc` files become unreadable
+
+## Graphify Knowledge Graph
+
+The codebase is indexed as a knowledge graph in `graphify-out/` (gitignored — regenerated locally).
+
+**Check graph is fresh before querying:**
+```bash
+# Compare the commit hash in graphify-out/GRAPH_REPORT.md with HEAD
+git rev-parse HEAD
+```
+
+**Rebuild after code changes (no API key needed):**
+```bash
+graphify update .
+```
+
+**Full rebuild including docs/specs (requires an LLM API key):**
+```bash
+ANTHROPIC_API_KEY=<key> graphify . --backend claude
+```
+
+**Git hooks keep the graph fresh automatically** — post-commit and post-checkout hooks run `graphify update .` in the background after every commit and branch switch. The hook skips safely during rebase/merge and is bypassed with `GRAPHIFY_SKIP_HOOK=1`.
+
+**After a fresh clone**, the `graphify-out/` directory won't exist. Run `graphify update .` once to build the code graph locally.
+
+**Key findings from the graph (251 nodes, 393 edges, 21 communities):**
+- God nodes (most connected): `validate_rows()` (29 edges), `safe_path()` (16 edges), `encrypt_payload()` (12 edges) — changes to these ripple widest
+- No import cycles detected
+- Communities map cleanly to subsystems: auth, storage/crypto, paths, ingestion/parser, ingestion/validator, UI pages, theming, admin
 
 ## Tests
 

@@ -24,3 +24,7 @@ data/
 .idea/
 *.swp
 
+# Graphify knowledge graph — regenerated locally by post-commit/post-checkout git hooks.
+# Run `graphify update .` manually after a fresh clone.
+graphify-out/
+
