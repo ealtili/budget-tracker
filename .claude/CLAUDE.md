@@ -218,22 +218,24 @@ Rules:
 
 ## Coding Behaviour Guidelines
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Behavioral guidelines to reduce common LLM coding mistakes and ensure secure, predictable execution. Merge with project-specific instructions as needed.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+**Tradeoff:** These guidelines bias toward caution, security, and precision over speed. For trivial, low-risk tasks, use judgment and don't over-apply.
 
 ## 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**Reason thoroughly. Output concisely. Don't assume; don't hide confusion.**
 
 Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
+- State your assumptions and the tradeoffs that affect the user's decision before you code — and nothing more.
+- If multiple interpretations exist, present them — don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+- Keep reasoning and planning out of the code; if a plan is worth showing, put it as brief prose before the block, not inside it.
+
+**Ask vs. proceed (decision boundary):**
+- **Proceed autonomously** when the outcome is *verifiable* and *reversible* — even if some detail is ambiguous, pick the most reasonable interpretation, state it, and move.
+- **Stop and ask first** when the action is *consequential or irreversible* (data loss, schema changes, public-facing output, spend, irreversible config) **and** the intent is genuinely ambiguous.
 
 ## 2. Simplicity First
-
 **Minimum code that solves the problem. Nothing speculative.**
 
 - No features beyond what was asked.
@@ -242,43 +244,60 @@ Before implementing:
 - No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+The operative rule: every line must trace to a stated requirement. Speculative generality is the failure mode to avoid.
 
 ## 3. Surgical Changes
-
 **Touch only what you must. Clean up only your own mess.**
 
 When editing existing code:
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- If you notice unrelated dead code or issues, mention them — don't act on them.
 
 When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+- Remove imports/variables/functions that **your** changes made unused — but only if you can reasonably confirm they aren't referenced elsewhere (including dynamic/string-based imports and reflection). When in doubt, leave them and flag for review.
+- Don't remove pre-existing dead code unless explicitly asked.
 
 The test: Every changed line should trace directly to the user's request.
 
 ## 4. Goal-Driven Execution
-
 **Define success criteria. Loop until verified.**
 
-Transform tasks into verifiable goals:
+Transform tasks into verifiable goals where a verification surface exists:
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
+**When tests don't apply** (config, docs, UI tweaks, exploratory work) or **no usable test suite exists**, define an alternative, explicit success check — manual reproduction steps, expected output, a lint/build/typecheck pass — and state it. Don't manufacture hollow tests, and don't assume a green suite that may not exist; if the baseline is already failing, surface that before changing anything.
+
 For multi-step tasks, state a brief plan:
-```
+```text
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Strong, checkable success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## 5. Secure by Design
+**Never sacrifice security for simplicity. Protect the execution environment and the supply chain.**
+
+- Always validate and sanitize external/user inputs.
+- Use parameterized queries; avoid constructing dynamic execution strings.
+- Follow least privilege in all configurations, IAM roles, and file permissions.
+- **Secrets:** Never hardcode credentials, keys, or tokens in source. Never commit `.env` or secret material. Never log secrets, tokens, or PII.
+- **Dependencies:** Don't introduce a new dependency silently. Flag the package, its purpose, and (where one exists) a lighter or already-present alternative before adding it. Treat new third-party code as supply-chain surface.
+- If a requested implementation introduces a known vulnerability or bypasses a security control (e.g., Model Context Protocol boundaries, Zero Trust policies): **flag the specific risk, require explicit acknowledgment, and offer a secure alternative.** Proceed only after the user confirms with that risk in view. Reserve outright refusal for requests whose evident purpose is to cause harm — not for legitimate security testing, deliberately vulnerable test fixtures, or red-team work.
+
+## 6. Tool & Environment Execution Boundaries
+**Read before you write. Validate before you execute.**
+
+When operating with autonomy, using external tools, or executing commands:
+- Never execute destructive commands (e.g., `rm -rf`, bulk database drops, `git push --force`, global config overwrites) without explicit user confirmation.
+- Read file states and verify directory context before creating or modifying files.
+- If a script or command fails, do not blindly retry — it may have already partially applied. Read the error, state the suspected cause in one or two lines, and verify current state before retrying. If the failed operation has non-idempotent or irreversible side effects and the state is uncertain, stop and ask instead of retrying.
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
+**These guidelines are working if:** diffs are surgical, success criteria are explicit and checked, dependencies and secrets are handled deliberately, risky actions are confirmed rather than assumed, and clarifying questions precede consequential work rather than following mistakes.
