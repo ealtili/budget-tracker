@@ -43,6 +43,23 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 Store in `.env` (gitignored). Never hardcode.
 
+- `APP_SECRET_KEY` change → requires rebuild (`--build`) because it's baked into the image env; all existing `.json.enc` files become unreadable.
+- `ADMIN_USERNAME` change → `docker compose restart` is enough (read at runtime).
+
+**Emergency admin password reset** (if locked out of the UI):
+```bash
+uv run python -c "
+import json, bcrypt
+from pathlib import Path
+f = Path('data/users.json')
+data = json.loads(f.read_text())
+user = next(u for u in data['users'] if u['username'] == 'YOUR_USERNAME')
+user['hashed_password'] = bcrypt.hashpw(b'NEW_PASSWORD', bcrypt.gensalt(rounds=12)).decode()
+user['password_reset_required'] = False
+f.write_text(json.dumps(data, indent=2))
+"
+```
+
 ## Architecture
 
 ### Data flow
