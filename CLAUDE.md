@@ -114,6 +114,50 @@ Column aliases are defined in `parser.COLUMN_ALIASES`. Adding a new canonical fi
 - `time` — stored as `"HH:MM:SS"`. Manual entry: from form text input. CSV upload: parsed by `validator._parse_time()`, defaults to `"00:00:00"` if absent.
 - `st.time_input` is **not used** — it enforces a 60-second minimum step, which prevents second-level precision.
 
+## Git Workflow
+
+### Branch strategy
+
+- `main` is the only long-lived branch and is always deployable
+- Use short-lived feature branches for any non-trivial change: `git checkout -b feat/budget-limits`
+- Merge back to `main` via PR or direct push for solo work
+
+### Commit message format
+
+Follow conventional commits — `<type>: <subject>` (imperative, lowercase subject):
+
+```
+feat: add monthly budget limits per category
+fix: category picker not updating after Income selected
+docs: update app_spec.md with budget limits schema
+docker: reduce image size by stripping .so debug symbols
+refactor: extract date parsing into shared utility
+test: add validator tests for future-date rejection
+```
+
+Common types for this project: `feat`, `fix`, `docs`, `docker`, `refactor`, `test`, `chore`
+
+### Pre-commit checklist
+
+1. `uv run pytest tests/ -q` — all tests pass
+2. If you changed data schemas (transaction fields, user fields) → update `app_spec.md`
+3. If you changed architecture, added a page, or changed a non-obvious constraint → update `CLAUDE.md`
+
+### What requires a Docker rebuild vs restart
+
+| Change | Action |
+|---|---|
+| Source code (`src/`), `Dockerfile`, `pyproject.toml`, `.streamlit/` | `docker compose up --build -d` |
+| `ADMIN_USERNAME` in `.env` | `docker compose restart` |
+| `APP_SECRET_KEY` in `.env` | `docker compose up --build -d` + all `.json.enc` files become unreadable |
+| `data/users.json` edited directly | Nothing — app reads it on every request |
+
+### What must never be committed
+
+`.env`, `data/` (both in `.gitignore`). The `.env.example` is the safe template to commit instead.
+
+---
+
 ## Data files
 
 - `data/users.json` — plaintext JSON (bcrypt hashes, no sensitive plaintext)
