@@ -1,5 +1,4 @@
 # ── Stage 1: dependency builder ───────────────────────────────────────────────
-# Uses the official uv image which has both uv and Python pre-installed.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 # UV tuning:
@@ -21,6 +20,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
+
+# ── Layer 3: slim the venv before it is copied to the runtime stage ──────────
+# Strip debug symbols from compiled extensions — saves ~150-200 MB from
+# pyarrow, numpy, pandas, cryptography and other packages with large .so files.
+# Also remove test directories and type-stub files not needed at runtime.
+RUN find /app/.venv -name "*.so" -exec strip --strip-debug {} \; 2>/dev/null || true \
+ && find /app/.venv -type d \( -name "tests" -o -name "test" \) \
+        -not -path "*/pytest*" -exec rm -rf {} + 2>/dev/null || true \
+ && find /app/.venv -name "*.pyi" -delete 2>/dev/null || true
 
 
 # ── Stage 2: minimal runtime image ────────────────────────────────────────────
