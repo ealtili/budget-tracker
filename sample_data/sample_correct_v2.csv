@@ -1,0 +1,23 @@
+date,time,type,amount,category,description,currency
+2026-06-01,09:00:00,income,3500.00,Salary,June base salary,USD
+2026-06-01,09:05:00,income,500.00,Bonus,Performance bonus Q2,USD
+2026-06-02,08:30:00,expense,1200.00,Housing,Monthly rent,USD
+2026-06-03,12:45:00,expense,85.40,Food & Drink,Weekly grocery run,USD
+2026-06-04,13:15:00,expense,42.50,Food & Drink,Team lunch,USD
+2026-06-05,07:55:00,expense,55.00,Transport,Monthly bus pass,USD
+2026-06-06,18:00:00,income,750.00,Freelance,Logo design project,USD
+2026-06-07,20:10:00,income,250.00,Rental Income,Parking space rental,USD
+2026-06-08,19:30:00,expense,29.99,Entertainment,Streaming subscriptions,USD
+2026-06-09,10:00:00,expense,120.00,Utilities,Electricity bill,USD
+2026-06-10,08:15:00,expense,18.00,Food & Drink,Coffee shop,USD
+2026-06-11,14:00:00,expense,65.00,Healthcare,Pharmacy visit,USD
+2026-06-12,11:30:00,income,200.00,Family & Gifts,Birthday money from parents,USD
+2026-06-13,16:00:00,expense,340.00,Shopping,New shoes and jacket,USD
+2026-06-14,09:00:00,expense,15.00,Education,Online course monthly fee,USD
+2026-06-15,18:45:00,expense,95.00,Transport,Ride-share rides this week,USD
+2026-06-16,20:00:00,expense,22.80,Food & Drink,Dinner out,USD
+2026-06-17,09:30:00,income,500.00,Investment Returns,ETF dividend payment,USD
+2026-06-18,07:00:00,expense,48.00,Healthcare,Gym membership,USD
+2026-06-19,21:00:00,expense,11.99,Entertainment,Cinema tickets,USD
+2026-06-20,19:30:00,expense,78.00,Food & Drink,Restaurant dinner,USD
+2026-06-20,10:00:00,income,120.00,Government & Benefits,Tax refund,USD

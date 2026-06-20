@@ -1,0 +1,8 @@
+# Normalise line endings: store as LF, check out as LF on all platforms
+* text=auto eol=lf
+
+# Treat binary files as binary (no line-ending conversion)
+*.xlsx binary
+*.png  binary
+*.jpg  binary
+*.ico  binary

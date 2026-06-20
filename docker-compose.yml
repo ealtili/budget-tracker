@@ -1,0 +1,28 @@
+services:
+  budget-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY}
+      # Set to your username to enable the admin panel for that account.
+      # The account must be registered normally first, then restart the container.
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request, sys; urllib.request.urlopen('http://localhost:8501/_stcore/health') or sys.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3

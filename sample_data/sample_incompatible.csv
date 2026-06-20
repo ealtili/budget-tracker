@@ -1,0 +1,11 @@
+Order ID,Product SKU,Product Name,Qty,Unit Price,Discount%,Shipping,Status,Customer Email
+ORD-00123,SKU-SHOE-42,Running Shoes sz 42,1,89.99,10,5.99,Shipped,user1@shop.com
+ORD-00124,SKU-SHIRT-M,Polo Shirt Medium,3,24.99,0,0.00,Delivered,user2@shop.com
+ORD-00125,SKU-HAT-ONE,Baseball Cap,2,14.50,5,3.99,Pending,user3@shop.com
+ORD-00126,SKU-JEANS-L,Slim Fit Jeans L,1,59.95,15,5.99,Shipped,user4@shop.com
+ORD-00127,SKU-SOCK-10,Sports Socks 10-pack,5,8.99,0,0.00,Delivered,user5@shop.com
+ORD-00128,SKU-BELT-32,Leather Belt 32in,1,29.99,0,3.99,Returned,user6@shop.com
+ORD-00129,SKU-COAT-XL,Winter Coat XL,1,149.00,20,9.99,Shipped,user7@shop.com
+ORD-00130,SKU-SCRF-01,Wool Scarf,2,19.99,0,0.00,Delivered,user8@shop.com
+ORD-00131,SKU-GLVE-02,Winter Gloves,1,22.50,10,3.99,Pending,user9@shop.com
+ORD-00132,SKU-BAG-003,Leather Handbag,1,199.00,0,0.00,Shipped,user10@shop.com

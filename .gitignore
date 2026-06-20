@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets — NEVER commit these
+.env
+
+# Runtime data — bind-mounted volume; backed up separately
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Project artefacts not needed in the repo
+initialprompt.md

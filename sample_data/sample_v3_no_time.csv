@@ -1,0 +1,16 @@
+Transaction Date,Transaction Type,Amount,Merchant Category,Memo,ISO Currency
+2026-06-01,income,3800.00,Salary,Monthly salary,USD
+2026-06-02,expense,1100.00,Housing,Rent,USD
+2026-06-03,expense,78.40,Food & Drink,Supermarket shop,USD
+2026-06-04,expense,42.00,Transport,Fuel fill-up,USD
+2026-06-05,income,500.00,Freelance,Invoice #2026-045,USD
+2026-06-06,expense,29.99,Entertainment,Streaming bundle,USD
+2026-06-07,expense,105.00,Utilities,Water and electricity,USD
+2026-06-08,income,300.00,Rental Income,Garage rental June,USD
+2026-06-09,expense,62.00,Healthcare,Dental check-up,USD
+2026-06-10,expense,185.00,Shopping,Clothes and accessories,USD
+2026-06-11,income,90.00,Investment Returns,Savings interest,USD
+2026-06-12,expense,14.00,Education,E-book purchase,USD
+2026-06-13,expense,47.00,Travel,City-to-city bus,USD
+2026-06-14,income,60.00,Family & Gifts,Gift card received,USD
+2026-06-15,expense,33.00,Food & Drink,Restaurant with friends,USD
