@@ -24,5 +24,3 @@ data/
 .idea/
 *.swp
 
-# Project artefacts not needed in the repo
-initialprompt.md
