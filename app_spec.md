@@ -1,4 +1,4 @@
-# Budget Tracker MVP — Application Specification (v4)
+# Budget Tracker MVP — Application Specification (v5)
 
 > Last updated: 2026-06-20. Reflects the fully built and running application.
 
@@ -412,7 +412,7 @@ which would otherwise prevent the category list from updating.
 
 - **Appearance** — Theme selector (System / Light / Dark)
 - **Change Password** — Requires current password; updates bcrypt hash
-- **Download My Data** — Decrypted transactions as CSV
+- **Download My Data** — Decrypted transactions exported as CSV with fixed column order: `date`, `time`, `type`, `category`, `description`, `amount`, `currency`, `source`, `created_at`. Internal field `id` is excluded. Missing columns are skipped gracefully.
 - **Delete Account** — Username re-entry confirmation; removes user record and `.json.enc`
 
 ### Admin Panel
@@ -581,7 +581,16 @@ Located in `sample_data/`:
 
 ---
 
-## 13. Verification Checklist
+## 13. Version Control
+
+Repository initialised at `C:\Temp\budget-tracker` with a single initial commit (`master`).
+
+`.gitignore` excludes: `.venv/`, `__pycache__/`, `.env`, `data/`, `initialprompt.md`, IDE folders.
+`.gitattributes` normalises all text files to LF; `.xlsx` treated as binary.
+
+---
+
+## 14. Verification Checklist
 
 | # | Test | Pass condition |
 |---|------|----------------|
