@@ -60,6 +60,27 @@ def add_transactions_bulk(user_id: str, txns: list[dict]) -> int:
     return len(txns)
 
 
+def update_transaction(user_id: str, txn_id: str, updates: dict) -> dict:
+    payload = _read_store(user_id)
+    for txn in payload["transactions"]:
+        if txn["id"] == txn_id:
+            for k, v in updates.items():
+                if k not in ("id", "created_at"):
+                    txn[k] = v
+            _write_store(user_id, payload)
+            return txn
+    raise ValueError(f"Transaction {txn_id!r} not found")
+
+
+def delete_transaction(user_id: str, txn_id: str) -> None:
+    payload = _read_store(user_id)
+    before = len(payload["transactions"])
+    payload["transactions"] = [t for t in payload["transactions"] if t["id"] != txn_id]
+    if len(payload["transactions"]) == before:
+        raise ValueError(f"Transaction {txn_id!r} not found")
+    _write_store(user_id, payload)
+
+
 def delete_user_store(user_id: str) -> None:
     path = safe_path(user_id)
     if path.exists():

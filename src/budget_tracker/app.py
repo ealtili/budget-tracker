@@ -28,6 +28,7 @@ from budget_tracker.ui import (  # noqa: E402
     income_page,
     login_page,
     settings_page,
+    transactions_page,
     upload_page,
 )
 from budget_tracker.ui.theme import apply_theme, render_selector  # noqa: E402
@@ -36,6 +37,7 @@ _USER_PAGES = {
     "📊 Overview":        dashboard_page,
     "💸 Expenses":        expenses_page,
     "💰 Income":          income_page,
+    "📋 Transactions":    transactions_page,
     "➕ Add Transaction": add_transaction_page,
     "📂 Upload":          upload_page,
     "⚙️ Settings":        settings_page,
