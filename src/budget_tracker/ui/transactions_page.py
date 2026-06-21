@@ -184,6 +184,9 @@ def render() -> None:
         return
 
     selected_idx = selected_rows[0]
+    if selected_idx >= len(disp):
+        st.info("Select a row to edit or delete it.")
+        return
     txn_id = disp.iloc[selected_idx]["id"]
     # Fetch the live record (disp row already has all fields but may be stale after edit)
     all_txns = get_transactions(user_id)
