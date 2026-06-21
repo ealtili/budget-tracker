@@ -135,6 +135,17 @@ def render() -> None:
         return
 
     # ── Filters ───────────────────────────────────────────────────────────────
+    today = date.today()
+    dr1, dr2 = st.columns(2)
+    with dr1:
+        start_date = st.date_input("From", value=date(today.year, today.month, 1), key="txn_from")
+    with dr2:
+        end_date = st.date_input("To", value=today, key="txn_to")
+
+    if start_date > end_date:
+        st.error("Start date must be before end date.")
+        return
+
     fc1, fc2, fc3 = st.columns(3)
     with fc1:
         search = st.text_input("Search description", placeholder="e.g. lunch", key="txn_search")
@@ -145,6 +156,7 @@ def render() -> None:
         cat_filter = st.selectbox("Category", ["All"] + all_cats, key="txn_cat")
 
     disp = df.copy()
+    disp = disp[(disp["date"].dt.date >= start_date) & (disp["date"].dt.date <= end_date)]
     if search:
         disp = disp[disp["description"].str.contains(search, case=False, na=False)]
     if type_filter != "All":
