@@ -4,33 +4,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+**All development runs in Docker** — the app is built and exercised via the container, not a local `uv run streamlit`. `docker compose up --build -d` is the primary loop for verifying a change.
+
 ```bash
-# Install dependencies (including dev)
-uv sync --extra dev
+# Generate a Fernet encryption key, then put it in .env as APP_SECRET_KEY
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
-# Run the app locally (APP_SECRET_KEY must be set first)
-export APP_SECRET_KEY=<fernet-key>   # Windows: $env:APP_SECRET_KEY="..."
-uv run streamlit run src/budget_tracker/app.py
-
-# Run all tests
-uv run pytest tests/ -v
-
-# Run a single test file
-uv run pytest tests/test_paths.py -v
-
-# Run a single test by name
-uv run pytest tests/test_validator.py::test_html_stripped_from_description -v
-
-# Run tests with coverage
-uv run pytest tests/ --cov=src/budget_tracker --cov-report=term-missing
-
-# Docker — build and run
+# Build and run the app (APP_SECRET_KEY must be set in .env first)
 docker compose up --build -d
-docker compose restart          # pick up .env changes without rebuilding
+
+# Pick up ADMIN_USERNAME / other .env changes without rebuilding
+docker compose restart
+
+# Tear down
 docker compose down
 
-# Generate a Fernet encryption key
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Tail logs
+docker compose logs -f
+```
+
+**Testing:** `uv sync --extra dev` + `uv run pytest` locally is currently the only way to run the test suite — the shipped `Dockerfile` builds a production-only image (`uv sync --no-dev`, and it deletes any `tests/` directories found under `.venv` for image size). Neither build stage installs pytest or copies the project's `tests/` folder, so there is no in-container equivalent today. If that's needed, it would require a dev-only build target/compose override that installs `--extra dev` and mounts or `COPY`s `tests/`.
+
+```bash
+# Local-only (no Docker path exists yet — see note above)
+uv sync --extra dev
+uv run pytest tests/ -v
+uv run pytest tests/test_paths.py -v
+uv run pytest tests/test_validator.py::test_html_stripped_from_description -v
+uv run pytest tests/ --cov=src/budget_tracker --cov-report=term-missing
 ```
 
 ## Environment Variables
@@ -39,19 +40,20 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 |---|---|---|
 | `APP_SECRET_KEY` | Yes | Fernet key. App refuses to start without it. |
 | `ADMIN_USERNAME` | No | Grants admin panel to this registered username. Restart (not rebuild) picks it up. |
-| `BUDGET_DATA_DIR` | No | Override data directory. Defaults to `./data`; Docker sets it to `/app/data`. |
+| `BUDGET_DATA_DIR` | No | Override data directory. Defaults to `./data` when run locally; Docker always uses `/app/data`, backed by the `budget_tracker_data` named volume. |
 
 Store in `.env` (gitignored). Never hardcode.
 
 - `APP_SECRET_KEY` change → requires rebuild (`--build`) because it's baked into the image env; all existing `.json.enc` files become unreadable.
 - `ADMIN_USERNAME` change → `docker compose restart` is enough (read at runtime).
 
-**Emergency admin password reset** (if locked out of the UI):
+**Emergency admin password reset** (if locked out of the UI) — run inside the
+container, against the volume-mounted path, not a host path:
 ```bash
-uv run python -c "
+docker compose exec budget-tracker python -c "
 import json, bcrypt
 from pathlib import Path
-f = Path('data/users.json')
+f = Path('/app/data/users.json')
 data = json.loads(f.read_text())
 user = next(u for u in data['users'] if u['username'] == 'YOUR_USERNAME')
 user['hashed_password'] = bcrypt.hashpw(b'NEW_PASSWORD', bcrypt.gensalt(rounds=12)).decode()
@@ -87,7 +89,14 @@ UI page → transaction_store.py → safe_path() → crypto.py → .json.enc fil
 
 `app.py` is the entry point. It runs `apply_theme()` on every render, then routes to either `_USER_PAGES` or `_ADMIN_PAGES` dict based on `is_admin()`. Each page module exposes a single `render()` function.
 
-**Important Streamlit constraint:** widgets inside `st.form` do not trigger reruns until submit. Any widget whose value needs to influence other widgets on the same render (e.g. the category picker driving the type badge in `add_transaction_page.py`) must live **outside** the form.
+**Important Streamlit constraint:** widgets inside `st.form` do not trigger reruns until submit. Any widget whose value needs to influence other widgets on the same render (e.g. the category picker driving the type badge in `add_transaction_page.py` and `transactions_page.py`'s edit form) must live **outside** the form.
+
+### Transactions page (`ui/transactions_page.py`)
+
+Full CRUD table (date range + search + type/category filters, single-row select-to-edit-or-delete), separate from the read-only tables embedded in `dashboard_page.py`/`expenses_page.py`/`income_page.py`. Two things worth knowing before touching it:
+
+- After filtering, `disp` is always `reset_index(drop=True)` before being passed to `st.dataframe(..., selection_mode="single-row")`. Skipping this lets a stale row index from a previous (larger) filter result outlive a rerun that shrinks the table, selecting the wrong record.
+- Edit/delete both re-fetch the record by `id` via `get_transactions()` rather than trusting the row already sitting in the filtered `disp` frame, since that frame can be one rerun stale.
 
 ### Theming
 
@@ -150,11 +159,11 @@ Common types for this project: `feat`, `fix`, `docs`, `docker`, `refactor`, `tes
 | Source code (`src/`), `Dockerfile`, `pyproject.toml`, `.streamlit/` | `docker compose up --build -d` |
 | `ADMIN_USERNAME` in `.env` | `docker compose restart` |
 | `APP_SECRET_KEY` in `.env` | `docker compose up --build -d` + all `.json.enc` files become unreadable |
-| `data/users.json` edited directly | Nothing — app reads it on every request |
+| `users.json` edited directly inside the volume | Nothing — app reads it on every request |
 
 ### What must never be committed
 
-`.env`, `data/`, `graphify-out/` (all in `.gitignore`). The `.env.example` is the safe template to commit instead.
+`.env`, `graphify-out/` (both in `.gitignore`). The `.env.example` is the safe template to commit instead. `.gitignore` also still excludes `data/` as a defensive leftover, but runtime data no longer lives there in practice — it's entirely in the `budget_tracker_data` named Docker volume, outside the repo tree (see §Data files below). If a stray `./data/` shows up locally, it's leftover from before the volume migration and is safe to ignore or delete.
 
 ### Skipping the graphify hook
 
@@ -167,9 +176,15 @@ GRAPHIFY_SKIP_HOOK=1 git commit -m "..."
 
 ## Data files
 
-- `data/users.json` — plaintext JSON (bcrypt hashes, no sensitive plaintext)
-- `data/transactions/<uuid4>.json.enc` — Fernet-encrypted; unreadable without `APP_SECRET_KEY`
+Runtime data lives in the named Docker volume `budget_tracker_data`, mounted at
+`/app/data` in the container — **not** a `./data` directory in this repo. Access it via
+`docker compose exec budget-tracker sh` or `docker run --rm -it -v budget_tracker_data:/data alpine sh`
+(prefix with `MSYS_NO_PATHCONV=1` on Windows/Git Bash).
+
+- `/app/data/users.json` — plaintext JSON (bcrypt hashes, no sensitive plaintext)
+- `/app/data/transactions/<uuid4>.json.enc` — Fernet-encrypted; unreadable without `APP_SECRET_KEY`
 - If `APP_SECRET_KEY` changes, all existing `.json.enc` files become unreadable
+- Backup/restore via `docker run --rm -v budget_tracker_data:/data -v "$(pwd)":/backup alpine tar czf/xzf ...` (see `app_spec.md` §10 for full commands)
 
 ## Graphify Knowledge Graph
 

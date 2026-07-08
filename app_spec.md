@@ -1,6 +1,6 @@
-# Budget Tracker MVP — Application Specification (v5)
+# Budget Tracker MVP — Application Specification (v6)
 
-> Last updated: 2026-06-20. Reflects the fully built and running application.
+> Last updated: 2026-07-09. Reflects the fully built and running application.
 
 ---
 
@@ -31,7 +31,7 @@ budget-tracker/
 ├── .streamlit/
 │   └── config.toml               # headless, maxUploadSize, toolbarMode, dark base theme
 │
-├── data/                         # bind-mounted Docker volume
+├── data/                         # schema shown below; lives in a named volume, not here
 │   ├── users.json                # hashed credentials, lockout state, reset flags
 │   └── transactions/
 │       └── <uuid4>.json.enc      # Fernet-encrypted per-user transaction store
@@ -74,6 +74,7 @@ budget-tracker/
 │           ├── dashboard_page.py # overview KPIs + charts + transaction table
 │           ├── expenses_page.py  # expenses-only dashboard
 │           ├── income_page.py    # income-only dashboard
+│           ├── transactions_page.py # filterable table + edit/delete CRUD
 │           ├── add_transaction_page.py
 │           ├── upload_page.py    # 5-phase CSV/Excel import wizard
 │           ├── settings_page.py  # password change, data export, delete account
@@ -83,10 +84,13 @@ budget-tracker/
     ├── __init__.py
     ├── test_paths.py
     ├── test_crypto.py
-    ├── test_auth.py
     ├── test_parser.py
     └── test_validator.py
 ```
+
+> The `data/` tree above documents the **schema/contents**, not a location in this
+> repo — at runtime it lives inside the named Docker volume `budget_tracker_data`,
+> mounted at `/app/data` in the container (§10). It is never a host-mounted directory.
 
 ---
 
@@ -196,6 +200,20 @@ Fernet-encrypted. Decrypted payload:
    traversal; raises `ValueError` if resolved path escapes `TRANSACTIONS_DIR`
 
 All storage functions call `safe_path()` — no raw string path construction anywhere.
+
+### 4c-1. Transaction CRUD (`storage/transaction_store.py`)
+
+| Function | Behaviour |
+|----------|-----------|
+| `get_transactions(user_id)` | Returns the full list of decrypted transaction dicts |
+| `add_transaction(user_id, txn)` | Assigns `id` (UUID4) + `created_at`, appends, re-encrypts, writes |
+| `add_transactions_bulk(user_id, txns)` | Same as above for a batch (CSV/Excel import); returns count written |
+| `update_transaction(user_id, txn_id, updates)` | Merges `updates` into the matching record; `id` and `created_at` are protected from overwrite; raises `ValueError` if `txn_id` is not found |
+| `delete_transaction(user_id, txn_id)` | Removes the matching record; raises `ValueError` if not found |
+| `delete_user_store(user_id)` | Deletes the entire `.json.enc` file (account deletion) |
+
+Every write re-encrypts and rewrites the whole file — there is no partial/append-only
+format on disk. `os.chmod(path, 0o600)` is re-applied after each write (see §4f).
 
 ### 4d. Encryption at Rest (`storage/crypto.py`)
 
@@ -359,6 +377,7 @@ Post-login, if password_reset_required = True:
 | 📊 Overview | KPI row + donut + monthly bar + filterable transaction table |
 | 💸 Expenses | Expenses-only KPIs, horizontal bar by category, donut, daily trend, table |
 | 💰 Income | Income-only KPIs, bar by source, donut, daily trend, table |
+| 📋 Transactions | Full CRUD: date range + search + type/category filters, select-a-row to edit or delete |
 | ➕ Add Transaction | Manual entry form; category drives type; editable time field |
 | 📂 Upload | 5-phase CSV/Excel import wizard |
 | ⚙️ Settings | Appearance (theme), change password, export CSV, delete account |
@@ -392,6 +411,43 @@ Admin **cannot** access any transaction dashboards or user data.
 │  Date | Time | Type | Category | Description | Amount   │
 └─────────────────────────────────────────────────────────┘
 ```
+
+### Transactions Page
+
+Read-write table view, distinct from the read-only tables embedded in Overview/Expenses/Income.
+
+```
+┌────────────────────────────────────────────────────────┐
+│  From / To date range (default: 1st of current month → today) │
+├────────────────────────────────────────────────────────┤
+│  Search description | Type filter | Category filter     │
+├────────────────────────────────────────────────────────┤
+│  Table (single-row selection, click to select)          │
+│  Date | Time | Type | Category | Description | Amount   │
+├────────────────────────────────────────────────────────┤
+│  [✏️ Edit]  [🗑️ Delete]   (shown once a row is selected) │
+└────────────────────────────────────────────────────────┘
+```
+
+- Filters apply client-side (in-memory `pandas` filter) after `get_transactions()` loads
+  the full decrypted list; `st.date_input("From")` defaults to the 1st of the current
+  month, `st.date_input("To")` defaults to today. `From > To` shows a validation error
+  and halts the render.
+- Row selection uses `st.dataframe(..., selection_mode="single-row", on_select="rerun")`.
+  Because filtering re-indexes the displayed frame, `disp` is `reset_index(drop=True)`
+  before rendering so the Streamlit selection event's row index stays aligned with the
+  filtered table — a stale index from a prior (larger) filter result is otherwise
+  possible if filters shrink the table between reruns.
+- **Delete** — clicking sets `confirm_delete_id` in session state, showing a one-line
+  summary (`category · amount · date`) and a second **Confirm Delete** button. Cancel
+  clears the flag without calling the store.
+- **Edit** — clicking sets `editing_id` in session state and renders `_edit_form()`
+  below the table. The category `st.selectbox` is placed **outside** `st.form` (same
+  reason as Add Transaction — forms batch widget reruns) so the income/expense type
+  badge updates live. Amount, date, time, and description are inside the form. Submit
+  calls `update_transaction()`; Cancel just clears `editing_id`.
+- Both actions re-fetch the live record by `id` from `get_transactions()` before acting,
+  rather than trusting the (possibly stale) row data already in the filtered frame.
 
 ### Add Transaction Form
 
@@ -483,6 +539,14 @@ Key optimisations:
 - `UV_COMPILE_BYTECODE=1` — pre-compile `.pyc` for faster cold start
 - Final image: ~150 MB (vs ~500 MB naive single-stage)
 
+All app development (running/verifying changes) happens through `docker compose up --build -d`,
+not a local Streamlit process. This is a production-hardened image by design: the builder
+stage runs `uv sync --no-dev` (dev dependencies like `pytest` are never installed) and
+strips any `tests/` directories found under `.venv`, and only `src/` is `COPY`'d into
+either stage — the project's own `tests/` folder never enters the image. There is
+currently no in-container way to run the test suite; `pytest` is run from a local `uv`
+environment instead (see root `CLAUDE.md` → Commands).
+
 ### Security Hardening
 
 | Measure | Detail |
@@ -500,7 +564,7 @@ Key optimisations:
 |----------|----------|-------------|
 | `APP_SECRET_KEY` | Yes | Fernet encryption key. Generate once, store in `.env`. |
 | `ADMIN_USERNAME` | No | Username to grant admin panel access. Must be a registered user. |
-| `BUDGET_DATA_DIR` | No | Override data directory path (default: `./data`; Docker: `/app/data`). |
+| `BUDGET_DATA_DIR` | No | Override data directory path (default when run locally: `./data`; Docker always uses `/app/data`, backed by the `budget_tracker_data` volume). |
 
 ### `docker-compose.yml` Summary
 
@@ -509,7 +573,7 @@ services:
   budget-tracker:
     build: .
     ports: ["8501:8501"]
-    volumes: ["./data:/app/data"]
+    volumes: ["budget_data:/app/data"]
     environment:
       APP_SECRET_KEY: ${APP_SECRET_KEY}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
@@ -517,7 +581,54 @@ services:
     restart: unless-stopped
     read_only: true
     tmpfs: [/tmp:size=64m]
+
+volumes:
+  budget_data:
+    name: budget_tracker_data
 ```
+
+### Data Persistence — Named Volume (not a bind mount)
+
+`/app/data` is backed by the named Docker volume `budget_tracker_data`, declared under
+the compose file's top-level `volumes:` key and referenced by the service's `budget_data`
+key. This replaced an earlier `./data:/app/data` host bind mount.
+
+**Why a named volume over a bind mount:**
+- Docker initializes a new named volume from the image's `/app/data` directory
+  (including the `chown -R appuser:appuser` from the Dockerfile) the first time it's
+  mounted — a bind mount instead inherits the host directory's existing ownership,
+  which caused permission mismatches between the container's UID 1000 and the host user.
+- Portable across hosts (no host-filesystem path assumptions); works identically on
+  Linux, macOS, and Windows (bind mounts on Windows/Git Bash are prone to path-translation
+  bugs — see the `MSYS_NO_PATHCONV=1` note below).
+- Lifecycle is Docker-managed: survives `docker compose down`, is untouched by
+  `git clean`, and is only removed by an explicit `docker volume rm` /
+  `docker compose down -v`.
+
+**Operational commands:**
+```bash
+# Inspect
+docker volume inspect budget_tracker_data
+
+# Shell in via the running service
+docker compose exec budget-tracker sh
+
+# Or browse the volume directly with a throwaway container
+docker run --rm -it -v budget_tracker_data:/data alpine sh
+
+# Backup
+docker run --rm -v budget_tracker_data:/data -v "$(pwd)":/backup alpine \
+  tar czf /backup/budget-data-backup.tar.gz -C /data .
+
+# Restore
+docker run --rm -v budget_tracker_data:/data -v "$(pwd)":/backup alpine \
+  sh -c "cd /data && tar xzf /backup/budget-data-backup.tar.gz"
+```
+
+> **Windows/Git Bash:** prefix `docker run -v <name>:<path> ...` commands with
+> `MSYS_NO_PATHCONV=1` — otherwise Git Bash's path-mangling rewrites the volume name
+> as a Windows path (e.g. `budget_tracker_data` → `C:/Programs/.../budget_tracker_data`)
+> and the mount fails or silently binds the wrong thing.
 
 ### `.streamlit/config.toml`
 
@@ -546,12 +657,13 @@ textColor         = "#e6edf3"
 3. Run `docker compose restart` (no rebuild needed — env var is read at runtime)
 4. Log in — the account now sees the Admin Panel instead of the finance pages
 
-To reset the admin password without logging in (e.g., forgotten):
+To reset the admin password without logging in (e.g., forgotten) — run inside the
+container against the volume-mounted path, not a host path:
 ```bash
-uv run python -c "
+docker compose exec budget-tracker python -c "
 import json, bcrypt
 from pathlib import Path
-f = Path('data/users.json')
+f = Path('/app/data/users.json')
 data = json.loads(f.read_text())
 user = next(u for u in data['users'] if u['username'] == 'YOURUSERNAME')
 user['hashed_password'] = bcrypt.hashpw(b'NEWPASSWORD', bcrypt.gensalt(rounds=12)).decode()
@@ -596,7 +708,7 @@ Repository initialised at `C:\Temp\budget-tracker` with a single initial commit 
 |---|------|----------------|
 | 1 | `docker compose up --build` | App at `http://localhost:8501` |
 | 2 | Register two users; add transactions for each | Users see only their own data |
-| 3 | Inspect `data/transactions/*.json.enc` | Binary — not human-readable |
+| 3 | `docker run --rm -v budget_tracker_data:/data alpine cat /data/transactions/*.json.enc` | Binary — not human-readable |
 | 4 | `safe_path("../../etc/passwd")` unit test | `ValueError` raised |
 | 5 | Corrupt a `.json.enc` file; reload dashboard | Generic error, no data leaked |
 | 6 | Upload `sample_correct_v2.csv` | 22 rows imported, time column visible |
@@ -609,6 +721,9 @@ Repository initialised at `C:\Temp\budget-tracker` with a single initial commit 
 | 12b | Add transaction — edit time field to a past time | Saved time matches edited value, not system time |
 | 12c | Add transaction — enter invalid time (e.g. `99:99`) | Validation error shown; transaction not saved |
 | 13 | Switch theme to Light / Dark / System | Surfaces update; dataframes remain readable |
+| 13b | Transactions page — narrow the date range/search until the table shrinks, then select a row | Correct row's edit/delete controls appear, not a stale one |
+| 13c | Transactions page — edit a row's category from Expense to Income and save | Type badge updates live pre-submit; saved record reflects new type + category |
+| 13d | Transactions page — delete a row, confirm | Row removed after rerun; re-selecting nothing shows the "select a row" prompt |
 | 14 | `pytest tests/ --cov=src` | 44 tests pass |
 | 15 | `docker exec <container> whoami` | `appuser` |
 | 16 | `docker inspect <container> --format='{{.HostConfig.ReadonlyRootfs}}'` | `true` |

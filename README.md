@@ -10,6 +10,7 @@ production-grade security from the start.
 
 ### Finance
 - **3 dashboards** — Overview (income vs expenses, net savings), Expenses (category breakdown, daily trend), Income (source breakdown, daily trend)
+- **Transactions page** — full CRUD: date range filter, search-by-description, type/category filters, single-row select-to-edit or delete (two-click confirm)
 - **Add transactions** — unified category picker with emoji-prefixed grouping (`💰` income / `💸` expense); type auto-derived from category; editable time field pre-filled with current system time
 - **Bulk import** — 5-phase CSV/Excel wizard: auto-detects column aliases, manual mapping UI for unrecognised headers, row-level validation with downloadable error report
 - **9 income categories** — Salary, Freelance, Business Income, Investment Returns, Rental Income, Family & Gifts, Government & Benefits, Bonus, Other Income
@@ -75,23 +76,41 @@ docker compose up --build
 
 App is available at **http://localhost:8501**
 
-> Data is stored in `./data/` on the host and survives container restarts.
+> Data is stored in the named Docker volume `budget_tracker_data` (mounted at
+> `/app/data` in the container) and survives container restarts and rebuilds. It is
+> **not** a host bind mount — see [Data Volume](#data-volume) below.
 
 ---
 
-### Local Development
+### Test Credentials
+
+Two accounts already exist (seeded into `budget_tracker_data`) for quick testing —
+`admin` (matches `ADMIN_USERNAME` in `.env`) and `alice`, a regular user:
+
+| Username | Password |
+|----------|----------|
+| `admin`  | `V0AuZwBT9HUTvO` |
+| `alice`  | `xuL8KPNGVT0qLP` |
+
+> ⚠️ These are local test credentials committed to this repo — they are **not secure**
+> and must never be reused on any deployment reachable outside your machine. If you
+> deploy this app anywhere public, register fresh accounts and reset these two first
+> (see **Emergency password reset** below).
+
+---
+
+### Local Development (tests only)
+
+All app development and running is done through Docker (above). A local `uv` environment
+is only needed to run the test suite — the shipped `Dockerfile` builds a production-only
+image (`--no-dev`, test directories stripped), so there's no in-container way to run
+`pytest` today.
 
 **Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/)
 
 ```bash
-# Install dependencies
 uv sync --extra dev
-
-# Set the encryption key
-export APP_SECRET_KEY=<your-generated-key>   # Windows: $env:APP_SECRET_KEY="..."
-
-# Run
-uv run streamlit run src/budget_tracker/app.py
+uv run pytest tests/ -v
 ```
 
 ---
@@ -103,12 +122,13 @@ uv run streamlit run src/budget_tracker/app.py
 3. `docker compose restart` (no rebuild needed)
 4. Log in — the account now shows **👑 Admin Panel** instead of the finance pages
 
-**Emergency password reset** (if locked out):
+**Emergency password reset** (if locked out) — runs inside the container against the
+volume-mounted `/app/data/users.json`:
 ```bash
-uv run python -c "
+docker compose exec budget-tracker python -c "
 import json, bcrypt
 from pathlib import Path
-f = Path('data/users.json')
+f = Path('/app/data/users.json')
 data = json.loads(f.read_text())
 user = next(u for u in data['users'] if u['username'] == 'YOUR_USERNAME')
 user['hashed_password'] = bcrypt.hashpw(b'NEW_PASSWORD', bcrypt.gensalt(rounds=12)).decode()
@@ -117,6 +137,40 @@ f.write_text(json.dumps(data, indent=2))
 print('Done')
 "
 ```
+
+---
+
+## Data Volume
+
+Transaction and user data lives in the named Docker volume `budget_tracker_data`
+(mounted at `/app/data`), **not** a `./data` bind mount. Docker owns its lifecycle —
+it survives `docker compose down` and rebuilds, and is only removed by an explicit
+`docker volume rm` or `docker compose down -v`.
+
+**Inspect / edit files** (no host access — go through the container or a helper container):
+```bash
+# Shell into the running container
+docker compose exec budget-tracker sh
+
+# Or use a throwaway Alpine container to browse the volume directly
+docker run --rm -it -v budget_tracker_data:/data alpine sh
+```
+
+**Backup**:
+```bash
+docker run --rm -v budget_tracker_data:/data -v "$(pwd)":/backup alpine \
+  tar czf /backup/budget-data-backup.tar.gz -C /data .
+```
+
+**Restore**:
+```bash
+docker run --rm -v budget_tracker_data:/data -v "$(pwd)":/backup alpine \
+  sh -c "cd /data && tar xzf /backup/budget-data-backup.tar.gz"
+```
+
+> On Windows with Git Bash, prefix these `docker run -v ...` commands with
+> `MSYS_NO_PATHCONV=1` — otherwise Git Bash rewrites the volume-name argument as a
+> Windows path and the mount silently fails.
 
 ---
 
@@ -180,29 +234,30 @@ budget-tracker/
 │       ├── dashboard_page.py
 │       ├── expenses_page.py
 │       ├── income_page.py
+│       ├── transactions_page.py # filterable table, edit/delete CRUD
 │       ├── add_transaction_page.py
 │       ├── upload_page.py
 │       ├── settings_page.py
 │       └── admin_page.py
 ├── tests/                      # 44 pytest unit tests
 ├── sample_data/                # 9 test upload files
-├── data/                       # runtime data (gitignored)
-│   ├── users.json              # hashed credentials
-│   └── transactions/           # encrypted per-user files
 ├── Dockerfile                  # multi-stage: uv builder → slim runtime
 ├── docker-compose.yml
 ├── pyproject.toml
-├── app_spec.md                 # full architecture specification (v5)
+├── app_spec.md                 # full architecture specification (v6)
 └── initialprompt.md            # original project brief
 ```
+
+> Runtime data (`users.json`, `transactions/`) lives in the named Docker volume
+> `budget_tracker_data`, not a directory in this tree — see [Data Volume](#data-volume).
 
 ---
 
 ## Security Notes
 
 - **Never commit `.env`** — it is gitignored. Rotate `APP_SECRET_KEY` if it is ever exposed; all existing transaction files will become unreadable (re-encryption required).
-- Transaction files in `data/transactions/` are encrypted but `data/users.json` contains bcrypt hashes — treat the `data/` directory as sensitive.
-- The container runs as `appuser` (UID 1000) with a read-only root filesystem. Only `./data` (bind-mounted volume) and `/tmp` (tmpfs) are writable.
+- Transaction files under `/app/data/transactions/` (inside the `budget_tracker_data` volume) are encrypted, but `users.json` in the same volume contains bcrypt hashes — treat the volume's contents as sensitive; back it up with `docker volume` commands, never by copying a host directory.
+- The container runs as `appuser` (UID 1000) with a read-only root filesystem. Only the `budget_tracker_data` volume (mounted at `/app/data`) and `/tmp` (tmpfs) are writable.
 
 ---
 
