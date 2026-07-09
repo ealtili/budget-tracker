@@ -89,8 +89,8 @@ Two accounts already exist (seeded into `budget_tracker_data`) for quick testing
 
 | Username | Password |
 |----------|----------|
-| `admin`  | `V0AuZwBT9HUTvO` |
-| `alice`  | `xuL8KPNGVT0qLP` |
+| `admin`  | `OnQEKFEuiTnAQdun` |
+| `alice`  | `KQAdSq0KoL7NgzIb` |
 
 > ⚠️ These are local test credentials committed to this repo — they are **not secure**
 > and must never be reused on any deployment reachable outside your machine. If you
