@@ -23,10 +23,10 @@ docker compose down
 docker compose logs -f
 ```
 
-**Testing:** `uv sync --extra dev` + `uv run pytest` locally is currently the only way to run the test suite — the shipped `Dockerfile` builds a production-only image (`uv sync --no-dev`, and it deletes any `tests/` directories found under `.venv` for image size). Neither build stage installs pytest or copies the project's `tests/` folder, so there is no in-container equivalent today. If that's needed, it would require a dev-only build target/compose override that installs `--extra dev` and mounts or `COPY`s `tests/`.
+**Testing:** `uv sync --extra dev` + `uv run pytest` locally is the fastest way to run the test suite. The shipped production `Dockerfile` deliberately can't run it (`uv sync --no-dev`, and it deletes any `tests/` directories found under `.venv` for image size) — that image is production-only by design and should stay that way. For an in-container alternative (e.g. no local Python 3.12), use the devcontainer instead: `.devcontainer/` is a separate dev-only image + compose override (source bind-mounted, `postCreateCommand: uv sync --extra dev`); open the repo in VS Code and **Reopen in Container**, then run the same `uv run pytest` commands below inside its terminal.
 
 ```bash
-# Local-only (no Docker path exists yet — see note above)
+# Local uv, or inside the devcontainer terminal
 uv sync --extra dev
 uv run pytest tests/ -v
 uv run pytest tests/test_paths.py -v

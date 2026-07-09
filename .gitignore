@@ -19,6 +19,9 @@ htmlcov/
 # Runtime data — bind-mounted volume; backed up separately
 data/
 
+# Devcontainer's local runtime data (if streamlit is run inside the container)
+.devcontainer-data/
+
 # IDE
 .vscode/
 .idea/

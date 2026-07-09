@@ -1,0 +1,25 @@
+services:
+  budget-tracker:
+    build:
+      # Compose resolves relative paths in every -f file against the *first*
+      # file's directory (../docker-compose.yml, i.e. the repo root) — not
+      # against this file's own directory. So "." means the repo root here.
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    image: budget-tracker-dev
+    # Overrides from the production service in ../docker-compose.yml: no
+    # read-only rootfs (uv needs to write .venv), source is bind-mounted for
+    # live editing, and the container just idles for VS Code to attach to.
+    # (The base file's /tmp tmpfs limit is harmless here and left as-is.)
+    read_only: false
+    command: sleep infinity
+    # !override replaces the base file's volumes list instead of merging with
+    # it — without this, the production budget_tracker_data named volume would
+    # also get mounted at /app/data alongside the bind mount below, giving this
+    # throwaway dev container needless access to real encrypted user data.
+    volumes: !override
+      - .:/app:cached
+    environment:
+      BUDGET_DATA_DIR: /app/.devcontainer-data
+    healthcheck:
+      disable: true

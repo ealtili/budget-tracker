@@ -101,10 +101,9 @@ Two accounts already exist (seeded into `budget_tracker_data`) for quick testing
 
 ### Local Development (tests only)
 
-All app development and running is done through Docker (above). A local `uv` environment
-is only needed to run the test suite — the shipped `Dockerfile` builds a production-only
-image (`--no-dev`, test directories stripped), so there's no in-container way to run
-`pytest` today.
+Running the app is always done through Docker (above), via the production `Dockerfile`
+(`--no-dev`, test directories stripped). A local `uv` environment is the quickest way to
+run the test suite without any container:
 
 **Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/)
 
@@ -112,6 +111,25 @@ image (`--no-dev`, test directories stripped), so there's no in-container way to
 uv sync --extra dev
 uv run pytest tests/ -v
 ```
+
+---
+
+### Devcontainer (VS Code)
+
+`.devcontainer/` provides an in-container alternative to the local `uv` setup above —
+useful if you don't want Python 3.12 installed on the host. It builds a separate
+dev-only image (`.devcontainer/Dockerfile`, no relation to the production `Dockerfile`),
+bind-mounts the repo, and runs `uv sync --extra dev` on creation so `pytest` and dev
+tooling are available in-container:
+
+1. Open the repo in VS Code with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) installed
+2. **Reopen in Container** when prompted (or via the command palette)
+3. `uv run pytest tests/ -v` inside the integrated terminal
+
+The devcontainer is independent of the hardened production service in
+`docker-compose.yml` (no read-only rootfs, source is live-mounted) and stores any
+runtime data it creates under `.devcontainer-data/` (gitignored), separate from the
+`budget_tracker_data` named volume used in production.
 
 ---
 
@@ -241,6 +259,7 @@ budget-tracker/
 │       └── admin_page.py
 ├── tests/                      # 44 pytest unit tests
 ├── sample_data/                # 7 test upload files
+├── .devcontainer/               # VS Code dev container (dev deps + tests, separate from prod image)
 ├── Dockerfile                  # multi-stage: uv builder → slim runtime
 ├── docker-compose.yml
 ├── pyproject.toml

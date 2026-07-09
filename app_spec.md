@@ -31,6 +31,11 @@ budget-tracker/
 ├── .streamlit/
 │   └── config.toml               # headless, maxUploadSize, toolbarMode, dark base theme
 │
+├── .devcontainer/
+│   ├── devcontainer.json         # VS Code Dev Containers config
+│   ├── Dockerfile                # dev-only image; no COPY of source (bind-mounted instead)
+│   └── docker-compose.yml        # overrides ../docker-compose.yml: no read-only rootfs, source bind mount
+│
 ├── data/                         # schema shown below; lives in a named volume, not here
 │   ├── users.json                # hashed credentials, lockout state, reset flags
 │   └── transactions/
@@ -544,9 +549,25 @@ All app development (running/verifying changes) happens through `docker compose 
 not a local Streamlit process. This is a production-hardened image by design: the builder
 stage runs `uv sync --no-dev` (dev dependencies like `pytest` are never installed) and
 strips any `tests/` directories found under `.venv`, and only `src/` is `COPY`'d into
-either stage — the project's own `tests/` folder never enters the image. There is
-currently no in-container way to run the test suite; `pytest` is run from a local `uv`
-environment instead (see root `CLAUDE.md` → Commands).
+either stage — the project's own `tests/` folder never enters the image. `pytest` is run
+from a local `uv` environment instead (see root `CLAUDE.md` → Commands), or from the
+devcontainer below if you'd rather not install Python 3.12 on the host.
+
+### Devcontainer (`.devcontainer/`)
+
+A second, dev-only image — unrelated to the production `Dockerfile` above — for running
+tests and editing in VS Code without a local Python install:
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Base `ghcr.io/astral-sh/uv:python3.12-bookworm-slim` image only; no `COPY` of source or `pyproject.toml` — the workspace is bind-mounted over `/app` at container start, so anything baked in at build time would be shadowed anyway. |
+| `docker-compose.yml` | Overrides the production service defined in `../docker-compose.yml`: `read_only: false`, bind-mounts the repo at `/app`, idles on `sleep infinity`, points `BUDGET_DATA_DIR` at `.devcontainer-data/` (gitignored) instead of the `budget_tracker_data` volume. The base file's `/tmp` tmpfs limit carries over but is inconsequential once the rootfs is writable. |
+| `devcontainer.json` | Composes the two files above; `postCreateCommand: uv sync --extra dev` installs dev deps (incl. `pytest`) into a `.venv` inside the mounted workspace on first creation. |
+
+Opening the repo in VS Code with the Dev Containers extension and choosing **Reopen in
+Container** builds this image; `.env`'s `APP_SECRET_KEY`/`ADMIN_USERNAME` are picked up
+the same way as the production service (`env_file: {path: .env, required: false}`), so
+the app can also be run inside the devcontainer if desired, not just `pytest`.
 
 ### Security Hardening
 
