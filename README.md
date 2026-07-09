@@ -240,7 +240,7 @@ budget-tracker/
 │       ├── settings_page.py
 │       └── admin_page.py
 ├── tests/                      # 44 pytest unit tests
-├── sample_data/                # 9 test upload files
+├── sample_data/                # 7 test upload files
 ├── Dockerfile                  # multi-stage: uv builder → slim runtime
 ├── docker-compose.yml
 ├── pyproject.toml

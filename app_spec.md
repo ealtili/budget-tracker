@@ -37,12 +37,13 @@ budget-tracker/
 │       └── <uuid4>.json.enc      # Fernet-encrypted per-user transaction store
 │
 ├── sample_data/                  # test upload files (not deployed)
-│   ├── sample_correct.csv
-│   ├── sample_needs_review.xlsx
-│   ├── sample_incompatible.csv
-│   ├── sample_correct_v2.csv     # includes time column, all income categories
+│   ├── sample_v3_correct.csv
+│   ├── sample_v3_mixed.xlsx
+│   ├── sample_v3_no_time.csv
 │   ├── sample_aliases_mixed_v2.xlsx
-│   └── sample_bank_statement_v2.csv
+│   ├── sample_bank_statement_v2.csv
+│   ├── sample_incompatible.csv
+│   └── sample_decrypted_transactions.json  # fabricated example of the decrypted payload shape (§3b); never read by the app
 │
 ├── src/
 │   └── budget_tracker/
@@ -681,15 +682,13 @@ Located in `sample_data/`:
 
 | File | Purpose |
 |------|---------|
-| `sample_correct.csv` | 19 rows, canonical columns, all valid |
-| `sample_needs_review.xlsx` | 14 valid + 6 error rows; alias column names; highlighted red |
-| `sample_incompatible.csv` | E-commerce format — no columns match schema |
-| `sample_correct_v2.csv` | 22 rows, includes `time` column, all 9 income categories used |
-| `sample_aliases_mixed_v2.xlsx` | 15 valid + 6 errors; alias columns + time column |
-| `sample_bank_statement_v2.csv` | UK bank statement (Value Date, Debit, Credit, Balance) — triggers full column mapping UI |
 | `sample_v3_correct.csv` | 22 rows; all 9 income + 10 expense categories covered; full time column; all valid |
 | `sample_v3_mixed.xlsx` | 16 valid + 7 error rows (one per error type); alias columns (`Txn Date`, `Direction`, `Amt`, `Label`); time column; highlighted red |
 | `sample_v3_no_time.csv` | 15 valid rows; **no time column** — verifies `00:00:00` default is applied; alias column names (`Transaction Date`, `Merchant Category`, `ISO Currency`) |
+| `sample_aliases_mixed_v2.xlsx` | 15 valid + 6 errors; alias columns + time column |
+| `sample_bank_statement_v2.csv` | UK bank statement (Value Date, Debit, Credit, Balance) — triggers full column mapping UI |
+| `sample_incompatible.csv` | E-commerce format — no columns match schema |
+| `sample_decrypted_transactions.json` | Fabricated example of the decrypted transaction payload shape (§3b); illustrative only, never read by the app |
 
 ---
 
